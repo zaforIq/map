@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Leaflet Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        html,
+        body,
+        #map {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+        }
+
+        .custom-icon {
+            background: gold;
+            
+            padding: 5px;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('map').setView([12.9716, 77.5946], 13); // Default location
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        let clickedMarker = null;
+
+        map.on('click', async function (e) {
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+
+            if (clickedMarker) {
+                clickedMarker.remove();
+            }
+
+            clickedMarker = L.marker([lat, lng], { draggable: false }).addTo(map);
+
+            // Get address using Nominatim
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+            const data = await res.json();
+
+            const locationName = data.display_name || "Unknown Location";
+
+            // Send location data back to React Native
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'location_click',
+                lat,
+                lng,
+                locationName
+            }));
+        });
+
+        // Receive messages from React Native
+        document.addEventListener('message', function (e) {
+            const data = JSON.parse(e.data);
+
+            if (data.type === 'animate_to_region') {
+                map.setView([data.latitude, data.longitude], data.zoom || 16);
+            }
+        });
+
+        // Add POI Markers (Example)
+        const poiList = [
+            { lat: 12.971, lng: 77.59, type: 'supermarket', name: 'Super Mart' },
+            { lat: 12.973, lng: 77.594, type: 'restaurant', name: 'Cafe Nice' },
+        ];
+
+        poiList.forEach(poi => {
+            const marker = L.marker([poi.lat, poi.lng])
+                .addTo(map)
+                .bindPopup(poi.name);
+
+            marker.on('click', () => {
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'poi_click',
+                    ...poi
+                }));
+            });
+        });
+    </script>
+</body>
+
+</html>
